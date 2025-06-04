@@ -1,0 +1,62 @@
+name: Branch Handler
+
+on:
+  workflow_dispatch:
+    inputs:
+      branch_name:
+        description: "Enter the branch name"
+        required: true
+      action:
+        description: "Action to perform (review_only, keep, delete)"
+        required: true
+        default: "review_only"
+        type: choice
+        options:
+          - review_only
+          - keep
+          - delete
+
+jobs:
+  create-artifact:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create file with input
+        run: |
+          echo "Branch: ${{ github.event.inputs.branch_name }}" > branch-info.txt
+          echo "Action: ${{ github.event.inputs.action }}" >> branch-info.txt
+
+      - name: Upload artifact for review
+        uses: actions/upload-artifact@v4
+        with:
+          name: branch-info
+          path: branch-info.txt
+
+  wait-for-approval:
+    needs: create-artifact
+    runs-on: ubuntu-latest
+    environment:
+      name: review
+    steps:
+      - name: Approved - Proceeding
+        run: echo "Approval received. Proceeding with action."
+
+  take-action:
+    needs: wait-for-approval
+    runs-on: ubuntu-latest
+    if: ${{ github.event.inputs.action != 'review_only' }}
+    steps:
+      - name: Perform Action
+        run: |
+          BRANCH="${{ github.event.inputs.branch_name }}"
+          ACTION="${{ github.event.inputs.action }}"
+          
+          echo "Action to perform: $ACTION on branch $BRANCH"
+
+          if [[ "$ACTION" == "delete" ]]; then
+            echo "Deleting branch $BRANCH..."
+            git clone https://github.com/${{ github.repository }} repo
+            cd repo
+            git push origin --delete "$BRANCH"
+          else
+            echo "Keeping branch $BRANCH. No changes made."
+          fi
