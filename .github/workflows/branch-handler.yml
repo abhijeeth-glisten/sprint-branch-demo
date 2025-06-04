@@ -3,8 +3,8 @@ name: Branch Handler
 on:
   workflow_dispatch:
     inputs:
-      branch_name:
-        description: "Enter the branch name"
+      branch_pattern:
+        description: "Enter branch name pattern (substring to match)"
         required: true
       action:
         description: "Action to perform (review_only, keep, delete)"
@@ -15,48 +15,94 @@ on:
           - review_only
           - keep
           - delete
+      confirm_delete:
+        description: "Type YES to confirm branch deletion"
+        required: false
+        default: ""
+        type: string
 
 jobs:
-  create-artifact:
+  fetch-branches:
     runs-on: ubuntu-latest
+    outputs:
+      matched_branches: ${{ steps.set_branches.outputs.branches }}
     steps:
-      - name: Create file with input
+      - name: Install GitHub CLI
         run: |
-          echo "Branch: ${{ github.event.inputs.branch_name }}" > branch-info.txt
-          echo "Action: ${{ github.event.inputs.action }}" >> branch-info.txt
+          sudo apt-get update
+          sudo apt-get install -y gh
+
+      - name: Authenticate GitHub CLI
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "$GITHUB_TOKEN" | gh auth login --with-token
+
+      - name: Fetch matching branches
+        id: set_branches
+        run: |
+          ALL_BRANCHES=$(gh api repos/${{ github.repository }}/branches --jq '.[].name')
+          MATCHING_BRANCHES=$(echo "$ALL_BRANCHES" | grep "${{ github.event.inputs.branch_pattern }}" || true)
+          echo "$MATCHING_BRANCHES" > matched_branches.txt
+          echo "::set-output name=branches::$MATCHING_BRANCHES"
 
       - name: Upload artifact for review
         uses: actions/upload-artifact@v4
         with:
-          name: branch-info
-          path: branch-info.txt
+          name: matched-branches
+          path: matched_branches.txt
 
   wait-for-approval:
-    needs: create-artifact
+    needs: fetch-branches
     runs-on: ubuntu-latest
     environment:
       name: review
     steps:
-      - name: Approved - Proceeding
-        run: echo "Approval received. Proceeding with action."
+      - name: Approval received - Ready for final confirmation
+        run: echo "Approved. Proceed to confirm deletion."
 
-  take-action:
+  confirm-deletion:
     needs: wait-for-approval
     runs-on: ubuntu-latest
-    if: ${{ github.event.inputs.action != 'review_only' }}
+    if: ${{ github.event.inputs.action == 'delete' }}
     steps:
-      - name: Perform Action
+      - name: Show branches to delete
         run: |
-          BRANCH="${{ github.event.inputs.branch_name }}"
-          ACTION="${{ github.event.inputs.action }}"
-          
-          echo "Action to perform: $ACTION on branch $BRANCH"
+          echo "Branches matching pattern '${{ github.event.inputs.branch_pattern }}' to be deleted:"
+          echo "${{ needs.fetch-branches.outputs.matched_branches }}"
 
-          if [[ "$ACTION" == "delete" ]]; then
-            echo "Deleting branch $BRANCH..."
-            git clone https://github.com/${{ github.repository }} repo
-            cd repo
-            git push origin --delete "$BRANCH"
+      - name: Check deletion confirmation
+        run: |
+          if [[ "${{ github.event.inputs.confirm_delete }}" != "YES" ]]; then
+            echo "Deletion NOT confirmed. Please re-run the workflow and type YES to confirm."
+            exit 1
           else
-            echo "Keeping branch $BRANCH. No changes made."
+            echo "Deletion confirmed. Proceeding."
           fi
+
+  take-action:
+    needs: confirm-deletion
+    runs-on: ubuntu-latest
+    if: ${{ github.event.inputs.action == 'delete' && github.event.inputs.confirm_delete == 'YES' }}
+    steps:
+      - name: Clone repo
+        run: git clone https://github.com/${{ github.repository }} repo
+
+      - name: Delete branches
+        run: |
+          cd repo
+          echo "${{ needs.fetch-branches.outputs.matched_branches }}" | while IFS= read -r branch || [[ -n "$branch" ]]; do
+            if [[ -z "$branch" ]]; then
+              continue
+            fi
+            echo "Deleting branch $branch..."
+            git push origin --delete "$branch"
+          done
+
+  keep-action:
+    needs: wait-for-approval
+    runs-on: ubuntu-latest
+    if: ${{ github.event.inputs.action == 'keep' || github.event.inputs.action == 'review_only' }}
+    steps:
+      - name: Keep branches - no action taken
+        run: echo "No changes made. Branches kept intact."
