@@ -1,0 +1,32 @@
+name: Sprint Branch Report
+
+on:
+  workflow_dispatch:
+    inputs:
+      sprint_prefix:
+        description: 'Sprint prefix to filter branches (e.g., sprint-)'
+        required: true
+        default: 'sprint-'
+
+jobs:
+  fetch-branches:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repo
+        uses: actions/checkout@v4
+
+      - name: Get All Branches Matching Prefix
+        run: |
+          echo "Fetching branches with prefix: ${{ github.event.inputs.sprint_prefix }}"
+          git fetch --all
+          BRANCHES=$(git branch -r | grep "${{ github.event.inputs.sprint_prefix }}" | sed 's/origin\///')
+          echo "$BRANCHES" > branch-list.txt
+          echo "Found branches:"
+          cat branch-list.txt
+
+      - name: Save Report as Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: sprint-branch-report
+          path: branch-list.txt
