@@ -39,12 +39,14 @@ jobs:
           echo "$GITHUB_TOKEN" | gh auth login --with-token
 
       - name: Fetch matching branches
-        id: set_branches
-        run: |
-          ALL_BRANCHES=$(gh api repos/${{ github.repository }}/branches --jq '.[].name')
-          MATCHING_BRANCHES=$(echo "$ALL_BRANCHES" | grep "${{ github.event.inputs.branch_pattern }}" || true)
-          echo "$MATCHING_BRANCHES" > matched_branches.txt
-          echo "::set-output name=branches::$MATCHING_BRANCHES"
+  env:
+    GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  run: |
+    ALL_BRANCHES=$(gh api repos/${{ github.repository }}/branches --jq '.[].name')
+    MATCHING_BRANCHES=$(echo "$ALL_BRANCHES" | grep "${{ github.event.inputs.branch_pattern }}" || true)
+    echo "$MATCHING_BRANCHES" > matched_branches.txt
+    echo "::set-output name=branches::$MATCHING_BRANCHES"
+
 
       - name: Upload artifact for review
         uses: actions/upload-artifact@v4
