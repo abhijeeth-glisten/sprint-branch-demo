@@ -1,26 +1,25 @@
+---
 name: Branch Handler
-
 on:
   workflow_dispatch:
     inputs:
       branch_pattern:
-        description: "Enter branch name pattern (substring to match)"
+        description: Enter branch name pattern (substring to match)
         required: true
       action:
-        description: "Action to perform (review_only, keep, delete)"
+        description: Action to perform (review_only, keep, delete)
         required: true
-        default: "review_only"
+        default: review_only
         type: choice
         options:
           - review_only
           - keep
           - delete
       confirm_delete:
-        description: "Type YES to confirm branch deletion"
+        description: Type YES to confirm branch deletion
         required: false
         default: ""
         type: string
-
 jobs:
   fetch-branches:
     runs-on: ubuntu-latest
@@ -31,20 +30,22 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y gh
-
       - name: Authenticate GitHub CLI
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           echo "$GITHUB_TOKEN" | gh auth login --with-token
-
       - name: Fetch matching branches
   env:
     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-  run: |
-    ALL_BRANCHES=$(gh api repos/${{ github.repository }}/branches --jq '.[].name')
+  run: >
+    ALL_BRANCHES=$(gh api repos/${{ github.repository }}/branches --jq
+    '.[].name')
+
     MATCHING_BRANCHES=$(echo "$ALL_BRANCHES" | grep "${{ github.event.inputs.branch_pattern }}" || true)
+
     echo "$MATCHING_BRANCHES" > matched_branches.txt
+
     echo "::set-output name=branches::$MATCHING_BRANCHES"
 
 
@@ -53,7 +54,6 @@ jobs:
         with:
           name: matched-branches
           path: matched_branches.txt
-
   wait-for-approval:
     needs: fetch-branches
     runs-on: ubuntu-latest
@@ -62,37 +62,37 @@ jobs:
     steps:
       - name: Approval received - Ready for final confirmation
         run: echo "Approved. Proceed to confirm deletion."
-
   confirm-deletion:
     needs: wait-for-approval
     runs-on: ubuntu-latest
     if: ${{ github.event.inputs.action == 'delete' }}
     steps:
       - name: Show branches to delete
-        run: |
-          echo "Branches matching pattern '${{ github.event.inputs.branch_pattern }}' to be deleted:"
-          echo "${{ needs.fetch-branches.outputs.matched_branches }}"
+        run: >
+          echo "Branches matching pattern '${{ github.event.inputs.branch_pattern }}'
+          to be deleted:"
 
+          echo "${{ needs.fetch-branches.outputs.matched_branches }}"
       - name: Check deletion confirmation
-        run: |
+        run: >
           if [[ "${{ github.event.inputs.confirm_delete }}" != "YES" ]]; then
             echo "Deletion NOT confirmed. Please re-run the workflow and type YES to confirm."
             exit 1
           else
             echo "Deletion confirmed. Proceeding."
           fi
-
   take-action:
     needs: confirm-deletion
     runs-on: ubuntu-latest
-    if: ${{ github.event.inputs.action == 'delete' && github.event.inputs.confirm_delete == 'YES' }}
+    if: ${{ github.event.inputs.action == 'delete' &&
+      github.event.inputs.confirm_delete == 'YES' }}
     steps:
       - name: Clone repo
         run: git clone https://github.com/${{ github.repository }} repo
-
       - name: Delete branches
-        run: |
+        run: >
           cd repo
+
           echo "${{ needs.fetch-branches.outputs.matched_branches }}" | while IFS= read -r branch || [[ -n "$branch" ]]; do
             if [[ -z "$branch" ]]; then
               continue
@@ -100,11 +100,11 @@ jobs:
             echo "Deleting branch $branch..."
             git push origin --delete "$branch"
           done
-
   keep-action:
     needs: wait-for-approval
     runs-on: ubuntu-latest
-    if: ${{ github.event.inputs.action == 'keep' || github.event.inputs.action == 'review_only' }}
+    if: ${{ github.event.inputs.action == 'keep' || github.event.inputs.action ==
+      'review_only' }}
     steps:
       - name: Keep branches - no action taken
         run: echo "No changes made. Branches kept intact."
