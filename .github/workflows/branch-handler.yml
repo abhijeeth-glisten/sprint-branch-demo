@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       branch_pattern:
-        description: Pattern to match branches (e.g., sprint-, hotfix, hotfix/v1.15)
+        description: Pattern to match branches (e.g., sprint-, hotfix, hotfix/1.15)
         required: true
       action:
         description: Action to perform (review, keep, delete)
@@ -18,6 +18,8 @@ on:
 jobs:
   handle-branches:
     runs-on: ubuntu-latest
+    outputs:
+      hotfix_exists: ${{ steps.filter_branches.outputs.hotfix_exists }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -35,6 +37,7 @@ jobs:
           ALL_BRANCHES=$(gh api -H "Accept: application/vnd.github+json" \
             /repos/${{ github.repository }}/branches --paginate --jq '.[].name')
           echo "$ALL_BRANCHES" > all_branches.txt
+          echo "Fetched branches count: $(echo "$ALL_BRANCHES" | wc -l)"
 
       - name: Filter branches and generate artifacts
         id: filter_branches
@@ -42,39 +45,44 @@ jobs:
           PATTERN="${{ github.event.inputs.branch_pattern }}"
           ALL_BRANCHES=$(cat all_branches.txt)
 
-          # Lowercase pattern for case-insensitive compare
           PATTERN_LOWER=$(echo "$PATTERN" | tr '[:upper:]' '[:lower:]')
 
-          # Initialize outputs
           echo "hotfix_exists=false" >> $GITHUB_OUTPUT
 
-          # Check if pattern starts with hotfix (case-insensitive)
-          if [[ "$PATTERN_LOWER" == hotfix* ]]; then
-            echo "Pattern starts with 'hotfix' — matching branches starting exactly with pattern (case-insensitive)"
+          echo "Input pattern: '$PATTERN'"
+          echo "Total branches fetched: $(echo "$ALL_BRANCHES" | wc -l)"
 
-            # Find branches starting with the exact pattern (case-insensitive)
-            MATCHING_BRANCHES=$(echo "$ALL_BRANCHES" | grep -i -E "^${PATTERN}" || true)
+          if [[ "$PATTERN_LOWER" == hotfix* ]]; then
+            echo "Pattern starts with 'hotfix' - matching branches starting exactly with pattern (case-insensitive)"
+
+            # Escape special regex chars in pattern for safe regex use
+            ESCAPED_PATTERN=$(echo "$PATTERN" | sed -E 's/[][\\.^$*+?{}|()]/\\&/g')
+
+            # Match branches starting with the exact pattern, case-insensitive
+            MATCHING_BRANCHES=$(echo "$ALL_BRANCHES" | grep -i -E "^${ESCAPED_PATTERN}" || true)
+            echo "Matched branches count: $(echo "$MATCHING_BRANCHES" | wc -l)"
             echo "$MATCHING_BRANCHES" > matched_branches.txt
 
-            # Also find ALL branches starting with hotfix/ (case-insensitive) for tags file
+            # Also extract all branches starting with 'hotfix/' case-insensitive
             HOTFIX_BRANCHES=$(echo "$ALL_BRANCHES" | grep -i -E '^hotfix/' || true)
 
             if [[ -n "$HOTFIX_BRANCHES" ]]; then
               echo "$HOTFIX_BRANCHES" > hotfix_branches.txt
-              # Extract the tag part after hotfix/
+              # Extract tag part after hotfix/
               echo "$HOTFIX_BRANCHES" | sed -E 's/^[Hh][Oo][Tt][Ff][Ii][Xx]\///' > hotfix_tags.txt
               echo "hotfix_exists=true" >> $GITHUB_OUTPUT
             fi
 
           else
-            # For non-hotfix pattern, do case-insensitive substring match anywhere
-            echo "Pattern does NOT start with 'hotfix' — doing case-insensitive substring match"
+            echo "Pattern does NOT start with 'hotfix' - doing case-insensitive substring match"
             MATCHING_BRANCHES=$(echo "$ALL_BRANCHES" | grep -i -F "$PATTERN" || true)
+            echo "Matched branches count: $(echo "$MATCHING_BRANCHES" | wc -l)"
             echo "$MATCHING_BRANCHES" > matched_branches.txt
           fi
 
           echo "Matched branches:"
-          cat matched_branches.txt
+          cat matched_branches.txt || echo "(no matches)"
+
           if [[ -f hotfix_tags.txt ]]; then
             echo "Hotfix tags:"
             cat hotfix_tags.txt
