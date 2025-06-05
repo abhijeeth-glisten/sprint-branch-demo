@@ -11,7 +11,7 @@ on:
         required: false
         default: review_only
       confirm_delete:
-        description: Type YES to confirm deletion
+        description: Type YES to confirm deletion (only needed if deleting)
         required: false
         default: ""
 
@@ -57,12 +57,19 @@ jobs:
     environment:
       name: review
     steps:
-      - name: Prompt for Review
-        run: echo "Please review the 'matched-branches' artifact, then re-run with action input."
+      - name: Validate initial run is review_only
+        run: |
+          if [[ "${{ github.event.inputs.action }}" != "review_only" ]]; then
+            echo "❌ You must first run this with 'action' set to 'review_only'."
+            echo "🛑 This run is only for generating and reviewing the matched branch list."
+            exit 1
+          else
+            echo "✅ Review-only mode: Artifact uploaded. Please review 'matched-branches.txt'."
+          fi
 
   handle-action:
     needs: review
-    if: ${{ github.event.inputs.action != '' }}
+    if: ${{ github.event.inputs.action != '' && github.event.inputs.action != 'review_only' }}
     runs-on: ubuntu-latest
     steps:
       - name: Download artifact
@@ -80,12 +87,14 @@ jobs:
           echo "$BRANCHES" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
 
-      - name: Confirm deletion if requested
+      - name: Confirm deletion if selected
         if: ${{ github.event.inputs.action == 'delete' }}
         run: |
           if [[ "${{ github.event.inputs.confirm_delete }}" != "YES" ]]; then
-            echo "❌ Deletion not confirmed. Rerun with confirm_delete = YES."
+            echo "❌ Deletion not confirmed. Rerun the workflow and type YES to confirm."
             exit 1
+          else
+            echo "✅ Deletion confirmed. Proceeding to delete branches."
           fi
 
       - name: Delete branches
@@ -98,6 +107,6 @@ jobs:
             fi
           done
 
-      - name: No action taken
-        if: ${{ github.event.inputs.action == 'keep' || github.event.inputs.action == 'review_only' }}
-        run: echo "No changes made. Branches kept."
+      - name: Keep branches
+        if: ${{ github.event.inputs.action == 'keep' }}
+        run: echo "✅ Branches kept intact. No deletions performed."
