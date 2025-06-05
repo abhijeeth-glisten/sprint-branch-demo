@@ -39,7 +39,7 @@ jobs:
             echo "🔍 Filtering branches starting with 'hotfix' (case-insensitive)..."
 
             # Case-insensitive match branches starting with hotfix
-            MATCHING_BRANCHES=$(echo "$ALL_BRANCHES" | grep -i "^hotfix" || true)
+            MATCHING_BRANCHES=$(echo "$ALL_BRANCHES" | grep -i "^hotfix" | grep -i "^hotfix/" || true)
             echo "$MATCHING_BRANCHES" > matched_branches.txt
 
             # Extract tag numbers ignoring case for hotfix/
