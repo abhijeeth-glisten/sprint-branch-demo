@@ -1,0 +1,53 @@
+name: Branch Handler - Step 1 (Fetch & Review)
+
+on:
+  workflow_dispatch:
+    inputs:
+      branch_pattern:
+        description: Pattern to match branches (e.g. sprint-)
+        required: true
+
+jobs:
+  fetch-branches:
+    runs-on: ubuntu-latest
+    outputs:
+      matched_branches: ${{ steps.set_branches.outputs.branches }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install GitHub CLI
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gh
+
+      - name: Fetch matching branches
+        id: set_branches
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          ALL_BRANCHES=$(gh api -H "Accept: application/vnd.github+json" \
+            /repos/${{ github.repository }}/branches --paginate --jq '.[].name')
+
+          MATCHING_BRANCHES=$(echo "$ALL_BRANCHES" | grep "${{ github.event.inputs.branch_pattern }}" || true)
+
+          echo "$MATCHING_BRANCHES" > matched_branches.txt
+
+          echo "branches<<EOF" >> $GITHUB_OUTPUT
+          echo "$MATCHING_BRANCHES" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Upload artifact for review
+        uses: actions/upload-artifact@v4
+        with:
+          name: matched-branches
+          path: matched_branches.txt
+
+  review-branches:
+    needs: fetch-branches
+    runs-on: ubuntu-latest
+    environment:
+      name: review
+    steps:
+      - name: Await developer approval
+        run: echo "Please review the uploaded 'matched-branches' artifact and proceed with Step 2 to choose an action."
