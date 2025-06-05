@@ -4,14 +4,14 @@ on:
   workflow_dispatch:
     inputs:
       branch_pattern:
-        description: Enter branch name pattern (substring to match)
+        description: Pattern to match branches (e.g., sprint-)
         required: true
       action:
-        description: Action to perform (review_only, keep, delete)
+        description: Choose action after review
         required: true
         default: review_only
       confirm_delete:
-        description: Type YES to confirm branch deletion
+        description: Type YES to confirm deletion (only required if action = delete)
         required: false
         default: ""
 
@@ -41,7 +41,6 @@ jobs:
 
           echo "$MATCHING_BRANCHES" > matched_branches.txt
 
-          # Use GITHUB_OUTPUT for setting output
           echo "branches<<EOF" >> $GITHUB_OUTPUT
           echo "$MATCHING_BRANCHES" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
@@ -52,43 +51,44 @@ jobs:
           name: matched-branches
           path: matched_branches.txt
 
-  wait-for-approval:
+  review-branches:
     needs: fetch-branches
     runs-on: ubuntu-latest
     environment:
       name: review
     steps:
-      - name: Approval received - Ready for final confirmation
-        run: echo "Approved. Proceed to confirm deletion."
+      - name: Prompt for developer review
+        run: echo "Review the matched branches from the artifact before proceeding."
 
-  confirm-deletion:
-    needs: wait-for-approval
+  confirm-action:
+    needs: review-branches
     runs-on: ubuntu-latest
-    if: ${{ github.event.inputs.action == 'delete' }}
     steps:
-      - name: Show branches to delete
+      - name: Decide what to do next
         run: |
-          echo "Branches matching pattern '${{ github.event.inputs.branch_pattern }}' to be deleted:"
-          echo "${{ needs.fetch-branches.outputs.matched_branches }}"
-
-      - name: Check deletion confirmation
-        run: |
-          if [[ "${{ github.event.inputs.confirm_delete }}" != "YES" ]]; then
-            echo "Deletion NOT confirmed. Please re-run the workflow and type YES to confirm."
-            exit 1
+          echo "Selected action: ${{ github.event.inputs.action }}"
+          if [[ "${{ github.event.inputs.action }}" == "delete" ]]; then
+            if [[ "${{ github.event.inputs.confirm_delete }}" != "YES" ]]; then
+              echo "❌ Deletion requires confirmation. Please rerun the workflow and enter YES."
+              exit 1
+            else
+              echo "✅ Deletion confirmed. Proceeding."
+            fi
+          elif [[ "${{ github.event.inputs.action }}" == "keep" ]]; then
+            echo "✅ Keeping branches as requested. No action will be taken."
           else
-            echo "Deletion confirmed. Proceeding."
+            echo "✅ Review only mode selected. No changes will be made."
           fi
 
-  take-action:
-    needs: confirm-deletion
-    runs-on: ubuntu-latest
+  perform-action:
+    needs: confirm-action
     if: ${{ github.event.inputs.action == 'delete' && github.event.inputs.confirm_delete == 'YES' }}
+    runs-on: ubuntu-latest
     steps:
       - name: Clone repo
         run: git clone https://github.com/${{ github.repository }} repo
 
-      - name: Delete branches
+      - name: Delete matched branches
         run: |
           cd repo
           echo "${{ needs.fetch-branches.outputs.matched_branches }}" | while read -r branch; do
@@ -98,10 +98,10 @@ jobs:
             fi
           done
 
-  keep-action:
-    needs: wait-for-approval
-    runs-on: ubuntu-latest
+  no-action-needed:
+    needs: confirm-action
     if: ${{ github.event.inputs.action == 'keep' || github.event.inputs.action == 'review_only' }}
+    runs-on: ubuntu-latest
     steps:
-      - name: Keep branches - no action taken
-        run: echo "No changes made. Branches kept intact."
+      - name: No changes applied
+        run: echo "Branches retained. No deletion performed."
