@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       branch_pattern:
-        description: Pattern to match branches (e.g., sprint-)
+        description: Pattern to match branches (e.g., sprint-, hotfix)
         required: true
       action:
         description: Action to perform (review, keep, delete)
@@ -35,17 +35,33 @@ jobs:
           ALL_BRANCHES=$(gh api -H "Accept: application/vnd.github+json" \
             /repos/${{ github.repository }}/branches --paginate --jq '.[].name')
 
-          MATCHING_BRANCHES=$(echo "$ALL_BRANCHES" | grep "${{ github.event.inputs.branch_pattern }}" || true)
+          if [[ "${{ github.event.inputs.branch_pattern }}" == "hotfix" ]]; then
+            echo "🔍 Filtering branches starting with 'hotfix'..."
 
-          echo "$MATCHING_BRANCHES" > matched_branches.txt
+            # Get branches that start with hotfix/
+            MATCHING_BRANCHES=$(echo "$ALL_BRANCHES" | grep "^hotfix" || true)
+            echo "$MATCHING_BRANCHES" > matched_branches.txt
+
+            # Extract tag numbers (part after 'hotfix/')
+            echo "$MATCHING_BRANCHES" | sed 's/^hotfix\///' > hotfix_tags.txt
+
+            echo "Created matched_branches.txt and hotfix_tags.txt"
+          else
+            echo "🔍 Filtering branches matching pattern '${{ github.event.inputs.branch_pattern }}'..."
+
+            MATCHING_BRANCHES=$(echo "$ALL_BRANCHES" | grep "${{ github.event.inputs.branch_pattern }}" || true)
+            echo "$MATCHING_BRANCHES" > matched_branches.txt
+          fi
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: matched-branches
-          path: matched_branches.txt
+          path: |
+            matched_branches.txt
+            hotfix_tags.txt
 
-      - name: Stop if action is review_only
+      - name: Stop if action is review
         if: ${{ github.event.inputs.action == 'review' }}
         run: |
           echo "✅ Branch list uploaded for review. No action will be taken."
@@ -61,25 +77,16 @@ jobs:
           fi
           echo "✅ Deletion confirmed."
 
-      - name: Configure Git
-        run: |
-          git config --global user.name "github-actions"
-          git config --global user.email "github-actions@github.com"
-
       - name: Delete branches
         if: ${{ github.event.inputs.action == 'delete' && github.event.inputs.confirm_delete == 'YES' }}
-        env:
-          TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
         run: |
-          git clone https://x-access-token:${TOKEN}@github.com/${{ github.repository }} repo
-          cd repo
-
           while read -r branch; do
             if [[ -n "$branch" ]]; then
-              echo "Deleting branch: $branch"
+              echo "Deleting $branch"
               git push origin --delete "$branch"
             fi
-          done < ../matched_branches.txt
+          done < matched_branches.txt
+
       - name: Keep branches (no action)
         if: ${{ github.event.inputs.action == 'keep' }}
         run: echo "✅ Branches kept intact."
