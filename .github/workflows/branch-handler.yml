@@ -1,4 +1,4 @@
-name: Branch Handler (Full Flow)
+name: Branch Handler
 
 on:
   workflow_dispatch:
@@ -8,7 +8,7 @@ on:
         required: true
       action:
         description: Action to perform (review_only, keep, delete)
-        required: false
+        required: true
         default: review_only
       confirm_delete:
         description: Type YES to confirm deletion (only needed if deleting)
@@ -16,10 +16,8 @@ on:
         default: ""
 
 jobs:
-  fetch-branches:
+  branch-handler:
     runs-on: ubuntu-latest
-    outputs:
-      matched_branches: ${{ steps.set_branches.outputs.branches }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -51,50 +49,20 @@ jobs:
           name: matched-branches
           path: matched_branches.txt
 
-  review:
-    needs: fetch-branches
-    runs-on: ubuntu-latest
-    environment:
-      name: review
-    steps:
-      - name: Validate initial run is review_only
+      - name: Exit if review_only
+        if: ${{ github.event.inputs.action == 'review_only' }}
         run: |
-          if [[ "${{ github.event.inputs.action }}" != "review_only" ]]; then
-            echo "❌ You must first run this with 'action' set to 'review_only'."
-            echo "🛑 This run is only for generating and reviewing the matched branch list."
-            exit 1
-          else
-            echo "✅ Review-only mode: Artifact uploaded. Please review 'matched-branches.txt'."
-          fi
+          echo "✅ Branch list uploaded for review. No action will be taken."
+          exit 0
 
-  handle-action:
-    needs: review
-    if: ${{ github.event.inputs.action != '' && github.event.inputs.action != 'review_only' }}
-    runs-on: ubuntu-latest
-    steps:
-      - name: Download artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: matched-branches
-          path: .
-
-      - name: Read branch list
-        id: read
-        run: |
-          BRANCHES=$(cat matched_branches.txt)
-          echo "$BRANCHES"
-          echo "matched_branches<<EOF" >> $GITHUB_OUTPUT
-          echo "$BRANCHES" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
-
-      - name: Confirm deletion if selected
+      - name: Confirm deletion
         if: ${{ github.event.inputs.action == 'delete' }}
         run: |
           if [[ "${{ github.event.inputs.confirm_delete }}" != "YES" ]]; then
-            echo "❌ Deletion not confirmed. Rerun the workflow and type YES to confirm."
+            echo "❌ Deletion not confirmed. Set 'confirm_delete' input to YES to proceed."
             exit 1
           else
-            echo "✅ Deletion confirmed. Proceeding to delete branches."
+            echo "✅ Deletion confirmed. Proceeding."
           fi
 
       - name: Delete branches
