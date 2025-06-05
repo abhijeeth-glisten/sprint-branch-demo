@@ -27,47 +27,46 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y gh
 
-      - name: Fetch matching branches
-        id: set_branches
+      - name: Fetch all branches
+        id: fetch_branches
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           ALL_BRANCHES=$(gh api -H "Accept: application/vnd.github+json" \
             /repos/${{ github.repository }}/branches --paginate --jq '.[].name')
+          echo "$ALL_BRANCHES" > all_branches.txt
 
+      - name: Filter branches and generate artifacts
+        id: filter_branches
+        run: |
           PATTERN="${{ github.event.inputs.branch_pattern }}"
+          ALL_BRANCHES=$(cat all_branches.txt)
 
-          # Normalize pattern for case-insensitive exact 'hotfix'
-          if [[ "$PATTERN" =~ ^([Hh][Oo][Tt][Ff][Ii][Xx])$ ]]; then
-            echo "🔍 Filtering branches starting with 'hotfix/' (case-insensitive fixed string)..."
+          MATCHING_BRANCHES=$(echo "$ALL_BRANCHES" | grep -i -F "$PATTERN" || true)
+          echo "$MATCHING_BRANCHES" > matched_branches.txt
 
-            # Match branches starting with hotfix/ (case-insensitive)
-            MATCHING_BRANCHES=$(echo "$ALL_BRANCHES" | grep -i -F "^hotfix/" || true)
-            echo "$MATCHING_BRANCHES" > matched_branches.txt
+          HOTFIX_BRANCHES=$(echo "$ALL_BRANCHES" | grep -i -E '^hotfix(/|$)' || true)
 
-            # Extract tag numbers after hotfix/, case-insensitive sed
-            echo "$MATCHING_BRANCHES" | sed -E 's/^[Hh][Oo][Tt][Ff][Ii][Xx]\///' > hotfix_tags.txt
-
-            echo "Created matched_branches.txt and hotfix_tags.txt"
-
+          if [[ -n "$HOTFIX_BRANCHES" ]]; then
+            echo "$HOTFIX_BRANCHES" > hotfix_branches.txt
+            echo "$HOTFIX_BRANCHES" | sed -E 's/^[Hh][Oo][Tt][Ff][Ii][Xx]\/(.*)/\1/' > hotfix_tags.txt
+            echo "hotfix_exists=true" >> $GITHUB_OUTPUT
           else
-            echo "🔍 Filtering branches matching pattern '$PATTERN' (case-insensitive fixed string)..."
-
-            # Use grep -i -F to do case-insensitive fixed string match anywhere in branch name
-            MATCHING_BRANCHES=$(echo "$ALL_BRANCHES" | grep -i -F "$PATTERN" || true)
-            echo "$MATCHING_BRANCHES" > matched_branches.txt
-
-            # Clear hotfix_tags.txt so upload won't fail if it doesn't exist
-            echo "" > hotfix_tags.txt
+            echo "hotfix_exists=false" >> $GITHUB_OUTPUT
           fi
 
-      - name: Upload artifact
+      - name: Upload artifact - matched branches
         uses: actions/upload-artifact@v4
         with:
           name: matched-branches
-          path: |
-            matched_branches.txt
-            hotfix_tags.txt
+          path: matched_branches.txt
+
+      - name: Upload artifact - hotfix tags
+        if: ${{ steps.filter_branches.outputs.hotfix_exists == 'true' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: hotfix-tags
+          path: hotfix_tags.txt
 
       - name: Stop if action is review
         if: ${{ github.event.inputs.action == 'review' }}
