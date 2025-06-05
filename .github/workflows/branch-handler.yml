@@ -7,16 +7,16 @@ on:
         description: Pattern to match branches (e.g., sprint-)
         required: true
       action:
-        description: Action to perform (review_only, keep, delete)
+        description: Action to perform (review, keep, delete)
         required: true
-        default: review_only
+        default: review
       confirm_delete:
         description: Type YES to confirm deletion (only needed if deleting)
         required: false
         default: ""
 
 jobs:
-  branch-handler:
+  handle-branches:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -39,42 +39,38 @@ jobs:
 
           echo "$MATCHING_BRANCHES" > matched_branches.txt
 
-          echo "branches<<EOF" >> $GITHUB_OUTPUT
-          echo "$MATCHING_BRANCHES" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
-
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: matched-branches
           path: matched_branches.txt
 
-      - name: Exit if review_only
-        if: ${{ github.event.inputs.action == 'review_only' }}
+      - name: Stop if action is review_only
+        if: ${{ github.event.inputs.action == 'review' }}
         run: |
           echo "✅ Branch list uploaded for review. No action will be taken."
+          echo "🛑 To take action, re-run the workflow and choose 'keep' or 'delete'."
           exit 0
 
       - name: Confirm deletion
         if: ${{ github.event.inputs.action == 'delete' }}
         run: |
           if [[ "${{ github.event.inputs.confirm_delete }}" != "YES" ]]; then
-            echo "❌ Deletion not confirmed. Set 'confirm_delete' input to YES to proceed."
+            echo "❌ Deletion not confirmed. Set 'confirm_delete' to YES."
             exit 1
-          else
-            echo "✅ Deletion confirmed. Proceeding."
           fi
+          echo "✅ Deletion confirmed."
 
       - name: Delete branches
         if: ${{ github.event.inputs.action == 'delete' && github.event.inputs.confirm_delete == 'YES' }}
         run: |
-          cat matched_branches.txt | while read -r branch; do
+          while read -r branch; do
             if [[ -n "$branch" ]]; then
-              echo "Deleting branch: $branch"
+              echo "Deleting $branch"
               git push origin --delete "$branch"
             fi
-          done
+          done < matched_branches.txt
 
-      - name: Keep branches
+      - name: Keep branches (no action)
         if: ${{ github.event.inputs.action == 'keep' }}
-        run: echo "✅ Branches kept intact. No deletions performed."
+        run: echo "✅ Branches kept intact."
