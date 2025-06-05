@@ -1,114 +1,15 @@
-name: Branch Handler
+name: Minimal Test
+
 on:
   workflow_dispatch:
     inputs:
-      branch_pattern:
-        description: Enter branch name pattern (substring to match)
+      test_input:
+        description: Test string
         required: true
-      action:
-        description: Action to perform (review_only, keep, delete)
-        required: true
-        default: review_only
-        type: choice
-        options:
-          - review_only
-          - keep
-          - delete
-      confirm_delete:
-        description: Type YES to confirm branch deletion
-        required: false
-        default: ""
-        type: string
+
 jobs:
-  fetch-branches:
+  test-run:
     runs-on: ubuntu-latest
-    outputs:
-      matched_branches: ${{ steps.set_branches.outputs.branches }}
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-      - name: Install GitHub CLI
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y gh
-      - name: Authenticate GitHub CLI
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: echo "${GITHUB_TOKEN}" | gh auth login --with-token
-      - name: Fetch matching branches
-        id: set_branches
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: >
-          ALL_BRANCHES=$(gh api -H "Accept: application/vnd.github+json" \
-            /repos/${{ github.repository }}/branches --paginate --jq '.[].name')
-
-          MATCHING_BRANCHES=$(echo "$ALL_BRANCHES" | grep "${{ github.event.inputs.branch_pattern}" || true)
-
-
-          echo "$MATCHING_BRANCHES" > matched_branches.txt
-
-
-          echo "branches<<EOF" >> $GITHUB_OUTPUT
-
-          echo "$MATCHING_BRANCHES" >> $GITHUB_OUTPUT
-
-          echo "EOF" >> $GITHUB_OUTPUT
-      - name: Upload artifact for review
-        uses: actions/upload-artifact@v4
-        with:
-          name: matched-branches
-          path: matched_branches.txt
-  wait-for-approval:
-    needs: fetch-branches
-    runs-on: ubuntu-latest
-    environment:
-      name: review
-    steps:
-      - name: Approval received - Ready for final confirmation
-        run: echo "Approved. Proceed to confirm deletion."
-  confirm-deletion:
-    needs: wait-for-approval
-    runs-on: ubuntu-latest
-    if: ${{ github.event.inputs.action == 'delete' }}
-    steps:
-      - name: Show branches to delete
-        run: >
-          echo "Branches matching pattern '${{ github.event.inputs.branch_pattern }}'
-          to be deleted:"
-
-          echo "${{ needs.fetch-branches.outputs.matched_branches }}"
-      - name: Check deletion confirmation
-        run: >
-          if [[ "${{ github.event.inputs.confirm_delete }}" != "YES" ]]; then
-            echo "Deletion NOT confirmed. Please re-run the workflow and type YES to confirm."
-            exit 1
-          else
-            echo "Deletion confirmed. Proceeding."
-          fi
-  take-action:
-    needs: confirm-deletion
-    runs-on: ubuntu-latest
-    if: ${{ github.event.inputs.action == 'delete' &&
-      github.event.inputs.confirm_delete == 'YES' }}
-    steps:
-      - name: Clone repo
-        run: git clone https://github.com/${{ github.repository }} repo
-      - name: Delete branches
-        run: >
-          cd repo
-
-          echo "${{ needs.fetch-branches.outputs.matched_branches }}" | while read -r branch; do
-            if [[ -n "$branch" ]]; then
-              echo "Deleting branch: $branch"
-              git push origin --delete "$branch"
-            fi
-          done
-  keep-action:
-    needs: wait-for-approval
-    runs-on: ubuntu-latest
-    if: ${{ github.event.inputs.action == 'keep' || github.event.inputs.action ==
-      'review_only' }}
-    steps:
-      - name: Keep branches - no action taken
-        run: echo "No changes made. Branches kept intact."
+      - name: Echo Input
+        run: echo "Input was: ${{ github.event.inputs.test_input }}"
