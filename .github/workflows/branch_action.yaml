@@ -1,0 +1,80 @@
+name: Branch Handler - Step 2 (Action)
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: Action to perform (review_only, keep, delete)
+        required: true
+        default: review_only
+      confirm_delete:
+        description: Type YES to confirm deletion (only if delete is chosen)
+        required: false
+        default: ""
+
+jobs:
+  download-artifact:
+    runs-on: ubuntu-latest
+    outputs:
+      matched_branches: ${{ steps.read.outputs.matched_branches }}
+    steps:
+      - name: Download artifact from previous run
+        uses: actions/download-artifact@v4
+        with:
+          name: matched-branches
+          path: .
+
+      - name: Read branch list from file
+        id: read
+        run: |
+          BRANCHES=$(cat matched_branches.txt)
+          echo "Matched branches:"
+          echo "$BRANCHES"
+          
+          echo "matched_branches<<EOF" >> $GITHUB_OUTPUT
+          echo "$BRANCHES" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+  confirm-action:
+    needs: download-artifact
+    runs-on: ubuntu-latest
+    steps:
+      - name: Confirm or deny deletion
+        run: |
+          echo "Action selected: ${{ github.event.inputs.action }}"
+
+          if [[ "${{ github.event.inputs.action }}" == "delete" ]]; then
+            if [[ "${{ github.event.inputs.confirm_delete }}" != "YES" ]]; then
+              echo "❌ Deletion not confirmed. Please rerun with confirm_delete = YES."
+              exit 1
+            fi
+            echo "✅ Deletion confirmed."
+          else
+            echo "✅ No deletion needed. Proceeding to next step."
+          fi
+
+  delete-branches:
+    needs: confirm-action
+    if: ${{ github.event.inputs.action == 'delete' && github.event.inputs.confirm_delete == 'YES' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Clone repository
+        run: git clone https://github.com/${{ github.repository }} repo
+
+      - name: Delete matched branches
+        run: |
+          cd repo
+          echo "${{ needs.download-artifact.outputs.matched_branches }}" | while read -r branch; do
+            if [[ -n "$branch" ]]; then
+              echo "Deleting branch: $branch"
+              git push origin --delete "$branch"
+            fi
+          done
+
+  no-action:
+    needs: confirm-action
+    if: ${{ github.event.inputs.action == 'keep' || github.event.inputs.action == 'review_only' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: No action taken
+        run: echo "No branches were deleted. Action was '${{ github.event.inputs.action }}'."
