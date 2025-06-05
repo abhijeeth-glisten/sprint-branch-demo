@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       branch_pattern:
-        description: Pattern to match branches (e.g., sprint-, hotfix)
+        description: Pattern to match branches (e.g., sprint-, hotfix, hotfix/1.51)
         required: true
       action:
         description: Action to perform (review, keep, delete)
@@ -35,23 +35,30 @@ jobs:
           ALL_BRANCHES=$(gh api -H "Accept: application/vnd.github+json" \
             /repos/${{ github.repository }}/branches --paginate --jq '.[].name')
 
-          if [[ "${{ github.event.inputs.branch_pattern }}" =~ ^([Hh][Oo][Tt][Ff][Ii][Xx])$ ]]; then
-            echo "🔍 Filtering branches starting with 'hotfix' (case-insensitive)..."
+          PATTERN="${{ github.event.inputs.branch_pattern }}"
 
-            # Case-insensitive match branches starting with hotfix
-            MATCHING_BRANCHES=$(echo "$ALL_BRANCHES" | grep -i "^hotfix/" || true)
+          # Normalize pattern for case-insensitive exact 'hotfix'
+          if [[ "$PATTERN" =~ ^([Hh][Oo][Tt][Ff][Ii][Xx])$ ]]; then
+            echo "🔍 Filtering branches starting with 'hotfix/' (case-insensitive fixed string)..."
+
+            # Match branches starting with hotfix/ (case-insensitive)
+            MATCHING_BRANCHES=$(echo "$ALL_BRANCHES" | grep -i -F "^hotfix/" || true)
             echo "$MATCHING_BRANCHES" > matched_branches.txt
 
-            # Extract tag numbers ignoring case for hotfix/
+            # Extract tag numbers after hotfix/, case-insensitive sed
             echo "$MATCHING_BRANCHES" | sed -E 's/^[Hh][Oo][Tt][Ff][Ii][Xx]\///' > hotfix_tags.txt
 
             echo "Created matched_branches.txt and hotfix_tags.txt"
-          else
-            echo "🔍 Filtering branches matching pattern '${{ github.event.inputs.branch_pattern }}' (case-insensitive)..."
 
-            # Case-insensitive match pattern anywhere
-            MATCHING_BRANCHES=$(echo "$ALL_BRANCHES" | grep -i "${{ github.event.inputs.branch_pattern }}" || true)
+          else
+            echo "🔍 Filtering branches matching pattern '$PATTERN' (case-insensitive fixed string)..."
+
+            # Use grep -i -F to do case-insensitive fixed string match anywhere in branch name
+            MATCHING_BRANCHES=$(echo "$ALL_BRANCHES" | grep -i -F "$PATTERN" || true)
             echo "$MATCHING_BRANCHES" > matched_branches.txt
+
+            # Clear hotfix_tags.txt so upload won't fail if it doesn't exist
+            echo "" > hotfix_tags.txt
           fi
 
       - name: Upload artifact
