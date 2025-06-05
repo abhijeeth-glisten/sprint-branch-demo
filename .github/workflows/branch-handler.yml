@@ -61,16 +61,25 @@ jobs:
           fi
           echo "✅ Deletion confirmed."
 
+      - name: Configure Git
+        run: |
+          git config --global user.name "github-actions"
+          git config --global user.email "github-actions@github.com"
+
       - name: Delete branches
         if: ${{ github.event.inputs.action == 'delete' && github.event.inputs.confirm_delete == 'YES' }}
+        env:
+          TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
         run: |
+          git clone https://x-access-token:${TOKEN}@github.com/${{ github.repository }} repo
+          cd repo
+
           while read -r branch; do
             if [[ -n "$branch" ]]; then
-              echo "Deleting $branch"
+              echo "Deleting branch: $branch"
               git push origin --delete "$branch"
             fi
-          done < matched_branches.txt
-
+          done < ../matched_branches.txt
       - name: Keep branches (no action)
         if: ${{ github.event.inputs.action == 'keep' }}
         run: echo "✅ Branches kept intact."
