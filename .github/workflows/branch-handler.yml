@@ -35,21 +35,22 @@ jobs:
           ALL_BRANCHES=$(gh api -H "Accept: application/vnd.github+json" \
             /repos/${{ github.repository }}/branches --paginate --jq '.[].name')
 
-          if [[ "${{ github.event.inputs.branch_pattern }}" == "hotfix" ]]; then
-            echo "🔍 Filtering branches starting with 'hotfix'..."
+          if [[ "${{ github.event.inputs.branch_pattern }}" =~ ^([Hh][Oo][Tt][Ff][Ii][Xx])$ ]]; then
+            echo "🔍 Filtering branches starting with 'hotfix' (case-insensitive)..."
 
-            # Get branches that start with hotfix/
-            MATCHING_BRANCHES=$(echo "$ALL_BRANCHES" | grep "^hotfix" || true)
+            # Case-insensitive match branches starting with hotfix
+            MATCHING_BRANCHES=$(echo "$ALL_BRANCHES" | grep -i "^hotfix" || true)
             echo "$MATCHING_BRANCHES" > matched_branches.txt
 
-            # Extract tag numbers (part after 'hotfix/')
-            echo "$MATCHING_BRANCHES" | sed 's/^hotfix\///' > hotfix_tags.txt
+            # Extract tag numbers ignoring case for hotfix/
+            echo "$MATCHING_BRANCHES" | sed -E 's/^[Hh][Oo][Tt][Ff][Ii][Xx]\///' > hotfix_tags.txt
 
             echo "Created matched_branches.txt and hotfix_tags.txt"
           else
-            echo "🔍 Filtering branches matching pattern '${{ github.event.inputs.branch_pattern }}'..."
+            echo "🔍 Filtering branches matching pattern '${{ github.event.inputs.branch_pattern }}' (case-insensitive)..."
 
-            MATCHING_BRANCHES=$(echo "$ALL_BRANCHES" | grep "${{ github.event.inputs.branch_pattern }}" || true)
+            # Case-insensitive match pattern anywhere
+            MATCHING_BRANCHES=$(echo "$ALL_BRANCHES" | grep -i "${{ github.event.inputs.branch_pattern }}" || true)
             echo "$MATCHING_BRANCHES" > matched_branches.txt
           fi
 
