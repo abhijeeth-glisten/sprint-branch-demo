@@ -1,0 +1,25 @@
+name: Simulate bpatil Commit and Run
+
+on:
+  workflow_dispatch:
+
+jobs:
+  fake_user_job:
+    runs-on: ubuntu-latest
+    env:
+      GIT_COMMITTER_NAME: bpatil
+      GIT_COMMITTER_EMAIL: bpatil@glisten.com
+      GIT_AUTHOR_NAME: bpatil
+      GIT_AUTHOR_EMAIL: bpatil@glisten.com
+    steps:
+      - name: Show fake user info
+        run: |
+          echo "Simulating execution by bpatil <bpatil@glisten.com>"
+          git config --global user.name "$GIT_AUTHOR_NAME"
+          git config --global user.email "$GIT_AUTHOR_EMAIL"
+          git init fake-repo
+          cd fake-repo
+          echo "Demo file" > demo.txt
+          git add demo.txt
+          git commit -m "Commit from simulated user"
+          git log --oneline --format="%an <%ae>"
