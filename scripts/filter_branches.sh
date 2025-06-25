@@ -10,12 +10,11 @@ if [[ -z "$BRANCH_TYPE" || -z "$TAG_OR_SPRINT" ]]; then
   exit 1
 fi
 
-echo " Filtering branches for: $BRANCH_TYPE / $TAG_OR_SPRINT"
+echo "✅ Filtering branches for: $BRANCH_TYPE / $TAG_OR_SPRINT"
 
 PATTERN="${BRANCH_TYPE}/${TAG_OR_SPRINT}"
 echo "Input pattern: '$PATTERN'" >> branch-handler-artifact.log
 
-# Required to avoid failure if $GITHUB_OUTPUT is not set
 GITHUB_OUTPUT="${GITHUB_OUTPUT:-/tmp/github_output.txt}"
 echo "hotfix_exists=false" >> "$GITHUB_OUTPUT"
 
@@ -26,10 +25,21 @@ if [[ "$BRANCH_TYPE" == "hotfix" ]]; then
   echo "$MATCHING_BRANCHES" >> branch-handler-artifact.log
 
   HOTFIX_BRANCHES=$(grep -i -E '^hotfix/' branch-handler-artifact.log || true)
+
+  echo "🔍 HOTFIX_BRANCHES:"
+  echo "$HOTFIX_BRANCHES"
+
   if [[ -n "$HOTFIX_BRANCHES" ]]; then
     echo "=== Hotfix Tags ===" >> branch-handler-artifact.log
-    echo "$HOTFIX_BRANCHES" | bash scripts/extract_hotfix_tags.sh >> branch-handler-artifact.log
+
+    echo "$HOTFIX_BRANCHES" | bash scripts/extract_hotfix_tags.sh >> branch-handler-artifact.log || {
+      echo "❌ extract_hotfix_tags.sh failed"
+      exit 1
+    }
+
     echo "hotfix_exists=true" >> "$GITHUB_OUTPUT"
+  else
+    echo "ℹ️ No matching hotfix branches found."
   fi
 else
   MATCHING_BRANCHES=$(grep -i -F "$PATTERN" branch-handler-artifact.log || true)
@@ -37,4 +47,4 @@ else
   echo "$MATCHING_BRANCHES" >> branch-handler-artifact.log
 fi
 
-echo " Filter script completed successfully."
+echo "✅ Filter script completed."
