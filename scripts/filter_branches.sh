@@ -5,12 +5,18 @@ BRANCH_TYPE="${1:-}"
 TAG_OR_SPRINT="${2:-}"
 
 if [[ -z "$BRANCH_TYPE" || -z "$TAG_OR_SPRINT" ]]; then
+  echo "❌ Missing required arguments."
   echo "Usage: $0 <branch_type> <tag_or_sprint>"
   exit 1
 fi
 
+echo " Filtering branches for: $BRANCH_TYPE / $TAG_OR_SPRINT"
+
 PATTERN="${BRANCH_TYPE}/${TAG_OR_SPRINT}"
 echo "Input pattern: '$PATTERN'" >> branch-handler-artifact.log
+
+# Required to avoid failure if $GITHUB_OUTPUT is not set
+GITHUB_OUTPUT="${GITHUB_OUTPUT:-/tmp/github_output.txt}"
 echo "hotfix_exists=false" >> "$GITHUB_OUTPUT"
 
 if [[ "$BRANCH_TYPE" == "hotfix" ]]; then
@@ -30,3 +36,5 @@ else
   echo "=== Matched Branches ===" >> branch-handler-artifact.log
   echo "$MATCHING_BRANCHES" >> branch-handler-artifact.log
 fi
+
+echo " Filter script completed successfully."
