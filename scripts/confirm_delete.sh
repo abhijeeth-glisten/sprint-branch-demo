@@ -1,12 +1,13 @@
 #!/bin/bash
 set -eu
 
-CONFIRM_DELETE=${CONFIRM_DELETE:-NO}
-CONFIRM_DELETE_UPPER=$(echo "$CONFIRM_DELETE" | tr '[:lower:]' '[:upper:]')
+# Normalize input and trim whitespace
+CONFIRM_DELETE_INPUT=${CONFIRM_DELETE_INPUT:-no}
+NORMALIZED=$(echo "$CONFIRM_DELETE_INPUT" | tr -d '[:space:]' | tr '[:lower:]' '[:upper:]')
 
-if [[ "$CONFIRM_DELETE_UPPER" == "YES" || "$CONFIRM_DELETE_UPPER" == "TRUE" ]]; then
+if [[ "$NORMALIZED" == "YES" ]]; then
   echo "Deletion confirmed."
 else
-  echo "Deletion not confirmed. Set 'confirm_delete' to YES."
+  echo "Deletion not confirmed. You must type YES (case-insensitive) to proceed."
   exit 1
 fi
