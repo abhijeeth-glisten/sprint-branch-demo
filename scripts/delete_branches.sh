@@ -1,42 +1,43 @@
 #!/bin/bash
-set -euo pipefail
+set -eu
 
 echo "🚀 Starting delete_branches.sh"
 
+# Define the expected full branch name
 BRANCH_PATTERN="${BRANCH_TYPE}/${TAG_OR_SPRINT}"
 
-echo "🧼 Looking for exact match: '$BRANCH_PATTERN' in branch-handler-artifact.log"
+echo "🔍 Searching for exact branch: '$BRANCH_PATTERN'"
 
-# Extract exact-matching branches
-MATCHES=$(grep -Fx "$BRANCH_PATTERN" branch-handler-artifact.log || true)
+# Deduplicate and trim artifact log before matching
+UNIQUE_BRANCHES=$(sort -u branch-handler-artifact.log | grep -Fx "$BRANCH_PATTERN" || true)
 
-if [[ -z "$MATCHES" ]]; then
+if [[ -z "$UNIQUE_BRANCHES" ]]; then
   echo "❌ No branch matching '$BRANCH_PATTERN' found in artifact. Aborting."
   exit 1
 fi
 
-COUNT=$(echo "$MATCHES" | wc -l)
+COUNT=$(echo "$UNIQUE_BRANCHES" | wc -l | tr -d '[:space:]')
 if [[ "$COUNT" -gt 1 ]]; then
-  echo "⚠️ Multiple branches matched '$BRANCH_PATTERN':"
-  echo "$MATCHES"
-  echo "❌ Aborting to prevent accidental deletions."
+  echo "⚠️ Multiple identical entries found for '$BRANCH_PATTERN':"
+  echo "$UNIQUE_BRANCHES"
+  echo "❌ Aborting to prevent unintended deletion."
   exit 1
 fi
 
-BRANCH="$MATCHES"
-echo "✅ Ready to delete: '$BRANCH'"
+BRANCH="$UNIQUE_BRANCHES"
+echo "✅ Proceeding to delete branch: '$BRANCH'"
 
-# Authenticate remote for push
+# Configure remote with authenticated token
 git remote set-url origin "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
 
-# Check existence
+# Check if branch exists remotely
 if git ls-remote --heads origin "$BRANCH" | grep -q "$BRANCH"; then
-  echo "🌿 Branch exists on remote. Deleting..."
+  echo "🌿 Branch exists. Deleting..."
 
   if git push origin --delete "$BRANCH" > delete.log 2>&1; then
-    echo "🗑️ Deleted '$BRANCH' via Git push."
+    echo "🗑️ Branch '$BRANCH' deleted via Git push."
   else
-    echo "⚠️ Git push failed. Trying GitHub API..."
+    echo "⚠️ Git push failed. Attempting GitHub API fallback..."
     cat delete.log
 
     RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" -X DELETE \
@@ -45,13 +46,13 @@ if git ls-remote --heads origin "$BRANCH" | grep -q "$BRANCH"; then
       "https://api.github.com/repos/${GITHUB_REPOSITORY}/git/refs/heads/${BRANCH}")
 
     if [[ "$RESPONSE" == "204" ]]; then
-      echo "✅ Deleted '$BRANCH' via GitHub API fallback."
+      echo "✅ Deleted '$BRANCH' via GitHub API."
     else
-      echo "❌ API deletion failed. Status: $RESPONSE"
+      echo "❌ GitHub API deletion failed (HTTP $RESPONSE)."
       exit 1
     fi
   fi
 else
-  echo "❌ Branch '$BRANCH' not found remotely. Skipping deletion."
+  echo "❌ Remote branch '$BRANCH' not found. Nothing to delete."
   exit 1
 fi
