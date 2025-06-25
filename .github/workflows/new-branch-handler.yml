@@ -1,4 +1,4 @@
-name: Branch Handler
+name: New Branch Handler
 
 on:
   workflow_dispatch:
