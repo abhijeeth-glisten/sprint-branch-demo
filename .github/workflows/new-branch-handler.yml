@@ -37,8 +37,6 @@ on:
 jobs:
   handle-branches:
     runs-on: ubuntu-latest
-            
-                                                                       
 
     steps:
       - name: Checkout repository
@@ -54,9 +52,6 @@ jobs:
       - name: Filter branches and generate artifacts
         id: filter_branches
         run: bash scripts/filter_branches.sh "${{ github.event.inputs.branch_type }}" "${{ github.event.inputs.tag_or_sprint }}"
-                                                             
-                                                                 
-                                            
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
@@ -76,6 +71,11 @@ jobs:
         env:
           CONFIRM_DELETE: ${{ github.event.inputs.confirm_delete }}
         run: bash scripts/confirm_delete.sh
+
+      - name: Debug confirm deletion and action
+        run: |
+          echo "Action: ${{ github.event.inputs.action }}"
+          echo "Confirm Delete: ${{ github.event.inputs.confirm_delete }}"
 
       - name: Delete branches
         if: ${{ github.event.inputs.action == 'delete' && github.event.inputs.confirm_delete == 'YES' }}
