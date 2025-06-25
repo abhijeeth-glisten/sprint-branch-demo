@@ -74,8 +74,8 @@ jobs:
 
       - name: Debug confirm deletion and action
         run: |
-          echo "Action: ${{ github.event.inputs.action }}"
-          echo "Confirm Delete: ${{ github.event.inputs.confirm_deletion }}"
+          echo "Action: '${{ github.event.inputs.action }}'"
+          echo "Confirm Delete: '${{ github.event.inputs.confirm_deletion }}'"
 
       - name: Delete branches
         if: ${{ github.event.inputs.action == 'delete' && github.event.inputs.confirm_deletion == 'YES' }}
