@@ -14,8 +14,8 @@ on:
           - hotfix
           - sprint
       tag_or_sprint:
-        description: Version number or Sprint number
-        required: false
+        description: Version number or Sprint number (e.g., v1.8.3 or 54)
+        required: true
       action:
         description: Action to perform
         required: true
@@ -26,9 +26,12 @@ on:
           - keep
           - delete
       confirm_delete:
-        description: Please type YES to confirm deletion (required if action is delete)
+        description: Type YES to confirm deletion
         required: false
         default: no
+
+permissions:
+  contents: write  # Ensures push/delete permissions for GITHUB_TOKEN
 
 jobs:
   handle-branches:
@@ -56,8 +59,7 @@ jobs:
       - name: Stop if action is review
         if: ${{ github.event.inputs.action == 'review' }}
         run: |
-          echo "Branch list uploaded for review. No action will be taken."
-          echo "To take action, re-run the workflow and choose 'keep' or 'delete'."
+          echo "Review mode only. No deletion performed."
           exit 0
 
       - name: Confirm deletion
@@ -66,11 +68,13 @@ jobs:
           CONFIRM_DELETE_INPUT: ${{ github.event.inputs.confirm_delete }}
         run: bash scripts/confirm_delete.sh
 
-      - name: Delete branches
+      - name: Delete selected branch
         if: ${{ github.event.inputs.action == 'delete' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_REPOSITORY: ${{ github.repository }}
+          BRANCH_TYPE: ${{ github.event.inputs.branch_type }}
+          TAG_OR_SPRINT: ${{ github.event.inputs.tag_or_sprint }}
         run: bash scripts/delete_branches.sh
 
       - name: Keep branches (no action)
