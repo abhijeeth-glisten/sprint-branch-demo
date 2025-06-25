@@ -25,14 +25,10 @@ on:
           - review
           - keep
           - delete
-      confirm_deletion:
-        description: Confirm deletion
+      confirm_delete:
+        description: Please type YES to confirm deletion (required if action is delete)
         required: false
         default: no
-        type: choice
-        options:
-          - no
-          - yes
 
 jobs:
   handle-branches:
@@ -43,14 +39,12 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Fetch all branches
-        id: fetch_branches
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_REPOSITORY: ${{ github.repository }}
         run: bash scripts/fetch_branches.sh
 
       - name: Filter branches and generate artifacts
-        id: filter_branches
         run: bash scripts/filter_branches.sh "${{ github.event.inputs.branch_type }}" "${{ github.event.inputs.tag_or_sprint }}"
 
       - name: Upload artifact
@@ -68,22 +62,12 @@ jobs:
 
       - name: Confirm deletion
         if: ${{ github.event.inputs.action == 'delete' }}
-        run: |
-          echo "User input: '${{ github.event.inputs.confirm_deletion }}'"
-          if [[ "${{ github.event.inputs.confirm_deletion }}" == "yes" ]]; then
-            echo "Confirmed deletion."
-            bash scripts/confirm_delete.sh
-          else
-            echo "Deletion not confirmed. Skipping confirmation step."
-          fi
-
-      - name: Debug confirm deletion and action
-        run: |
-          echo "Action: '${{ github.event.inputs.action }}'"
-          echo "Confirm Delete: '${{ github.event.inputs.confirm_deletion }}'"
+        env:
+          CONFIRM_DELETE_INPUT: ${{ github.event.inputs.confirm_delete }}
+        run: bash scripts/confirm_delete.sh
 
       - name: Delete branches
-        if: ${{ github.event.inputs.action == 'delete' && format('{0}', github.event.inputs.confirm_deletion) == 'yes' }}
+        if: ${{ github.event.inputs.action == 'delete' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_REPOSITORY: ${{ github.repository }}
