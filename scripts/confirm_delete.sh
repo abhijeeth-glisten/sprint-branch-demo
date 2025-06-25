@@ -1,9 +1,12 @@
 #!/bin/bash
 set -eu
 
-if [[ "$CONFIRM_DELETE" != "YES" ]]; then
-  echo "Deletion not confirmed. Set 'confirm_delete' to YES."
-  exit 1
-fi
-
-echo "Deletion confirmed."
+case "${CONFIRM_DELETE,,}" in
+  yes|true)
+    echo "Deletion confirmed."
+    ;;
+  *)
+    echo "Deletion not confirmed. Set 'confirm_delete' to YES or true."
+    exit 1
+    ;;
+esac
