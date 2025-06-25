@@ -1,5 +1,5 @@
 #!/bin/bash
-set -euo pipefail
+set -eu
 
 PATTERN="${BRANCH_TYPE}/${TAG_OR_SPRINT}"
 echo "Input pattern: '$PATTERN'" >> branch-handler-artifact.log

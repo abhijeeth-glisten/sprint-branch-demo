@@ -1,5 +1,5 @@
 #!/bin/bash
-set -euo pipefail
+set -eu
 
 while read -r branch; do
   if [[ -n "$branch" ]]; then

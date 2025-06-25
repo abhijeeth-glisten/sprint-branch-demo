@@ -1,5 +1,5 @@
 #!/bin/bash
-set -euo pipefail
+set -eu
 
 if [[ "$CONFIRM_DELETE" != "YES" ]]; then
   echo "Deletion not confirmed. Set 'confirm_delete' to YES."
