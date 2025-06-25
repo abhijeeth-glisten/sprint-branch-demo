@@ -69,16 +69,16 @@ jobs:
       - name: Confirm deletion
         if: ${{ github.event.inputs.action == 'delete' }}
         env:
-          CONFIRM_DELETE: ${{ github.event.inputs.confirm_delete }}
+          CONFIRM_DELETE: ${{ github.event.inputs.confirm_deletion }}
         run: bash scripts/confirm_delete.sh
 
       - name: Debug confirm deletion and action
         run: |
           echo "Action: ${{ github.event.inputs.action }}"
-          echo "Confirm Delete: ${{ github.event.inputs.confirm_delete }}"
+          echo "Confirm Delete: ${{ github.event.inputs.confirm_deletion }}"
 
       - name: Delete branches
-        if: ${{ github.event.inputs.action == 'delete' && github.event.inputs.confirm_delete == 'YES' }}
+        if: ${{ github.event.inputs.action == 'delete' && github.event.inputs.confirm_deletion == 'YES' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_REPOSITORY: ${{ github.repository }}
