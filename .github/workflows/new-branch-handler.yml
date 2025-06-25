@@ -28,11 +28,11 @@ on:
       confirm_deletion:
         description: Confirm deletion
         required: false
-        default: NO
+        default: no
         type: choice
         options:
-          - NO
-          - YES
+          - no
+          - yes
 
 jobs:
   handle-branches:
@@ -70,7 +70,7 @@ jobs:
         if: ${{ github.event.inputs.action == 'delete' }}
         run: |
           echo "User input: '${{ github.event.inputs.confirm_deletion }}'"
-          if [[ "${{ github.event.inputs.confirm_deletion }}" == "YES" ]]; then
+          if [[ "${{ github.event.inputs.confirm_deletion }}" == "yes" ]]; then
             echo "Confirmed deletion."
             bash scripts/confirm_delete.sh
           else
@@ -83,7 +83,7 @@ jobs:
           echo "Confirm Delete: '${{ github.event.inputs.confirm_deletion }}'"
 
       - name: Delete branches
-        if: ${{ github.event.inputs.action == 'delete' && format('{0}', github.event.inputs.confirm_deletion) == 'YES' }}
+        if: ${{ github.event.inputs.action == 'delete' && format('{0}', github.event.inputs.confirm_deletion) == 'yes' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_REPOSITORY: ${{ github.repository }}
