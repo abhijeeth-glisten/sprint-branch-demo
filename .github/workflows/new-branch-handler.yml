@@ -68,9 +68,14 @@ jobs:
 
       - name: Confirm deletion
         if: ${{ github.event.inputs.action == 'delete' }}
-        env:
-          CONFIRM_DELETE: ${{ github.event.inputs.confirm_deletion }}
-        run: bash scripts/confirm_delete.sh
+        run: |
+          echo "User input: '${{ github.event.inputs.confirm_deletion }}'"
+          if [[ "${{ github.event.inputs.confirm_deletion }}" == "YES" ]]; then
+            echo "Confirmed deletion."
+            bash scripts/confirm_delete.sh
+          else
+            echo "Deletion not confirmed. Skipping confirmation step."
+          fi
 
       - name: Debug confirm deletion and action
         run: |
