@@ -83,7 +83,7 @@ jobs:
           echo "Confirm Delete: '${{ github.event.inputs.confirm_deletion }}'"
 
       - name: Delete branches
-        if: ${{ github.event.inputs.action == 'delete' && github.event.inputs.confirm_deletion == 'YES' }}
+        if: ${{ github.event.inputs.action == 'delete' && format('{0}', github.event.inputs.confirm_deletion) == 'YES' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_REPOSITORY: ${{ github.repository }}
