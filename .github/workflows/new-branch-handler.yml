@@ -1,4 +1,7 @@
 name: New Branch Handler
+run-name: >
+  ${{ github.actor }} triggered ${{ github.event.inputs.action }} for
+  ${{ github.event.inputs.branch_type }}-${{ github.event.inputs.tag_or_sprint }}
 
 on:
   workflow_dispatch:
@@ -34,25 +37,26 @@ on:
 jobs:
   handle-branches:
     runs-on: ubuntu-latest
-    outputs:
-      hotfix_exists: ${{ steps.filter_branches.outputs.hotfix_exists }}
+            
+                                                                       
 
     steps:
-      - name: Checkout repo
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Fetch branches
+      - name: Fetch all branches
         id: fetch_branches
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
         run: bash scripts/fetch_branches.sh
 
-      - name: Filter branches
+      - name: Filter branches and generate artifacts
         id: filter_branches
-        env:
-          BRANCH_TYPE: ${{ github.event.inputs.branch_type }}
-          TAG_OR_SPRINT: ${{ github.event.inputs.tag_or_sprint }}
-        run: bash scripts/filter_branches.sh
+        run: bash scripts/filter_branches.sh "${{ github.event.inputs.branch_type }}" "${{ github.event.inputs.tag_or_sprint }}"
+                                                             
+                                                                 
+                                            
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
@@ -60,11 +64,14 @@ jobs:
           name: branch-handler-output
           path: branch-handler-artifact.log
 
-      - name: Confirm or exit on review
+      - name: Stop if action is review
         if: ${{ github.event.inputs.action == 'review' }}
-        run: echo "Review complete. No action taken."
+        run: |
+          echo "Branch list uploaded for review. No action will be taken."
+          echo "To take action, re-run the workflow and choose 'keep' or 'delete'."
+          exit 0
 
-      - name: Confirm delete
+      - name: Confirm deletion
         if: ${{ github.event.inputs.action == 'delete' }}
         env:
           CONFIRM_DELETE: ${{ github.event.inputs.confirm_delete }}
@@ -74,8 +81,9 @@ jobs:
         if: ${{ github.event.inputs.action == 'delete' && github.event.inputs.confirm_delete == 'YES' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
         run: bash scripts/delete_branches.sh
 
-      - name: Keep branches (no-op)
+      - name: Keep branches (no action)
         if: ${{ github.event.inputs.action == 'keep' }}
         run: bash scripts/keep_branches.sh
