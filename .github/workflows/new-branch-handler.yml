@@ -25,7 +25,7 @@ on:
           - review
           - keep
           - delete
-      confirm_delete:
+      confirm_deletion:
         description: Confirm deletion
         required: false
         default: NO
