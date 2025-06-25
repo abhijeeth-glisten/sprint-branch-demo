@@ -33,7 +33,7 @@ on:
 
 jobs:
   handle-branches:
-    runs-on: storelink
+    runs-on: ubuntu-latest
     outputs:
       hotfix_exists: ${{ steps.filter_branches.outputs.hotfix_exists }}
 
