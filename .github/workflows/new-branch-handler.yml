@@ -14,7 +14,7 @@ on:
           - hotfix
           - sprint
       tag_or_sprint:
-        description: Version number or Sprint number (e.g., v1.8.3 or 54)
+        description: Version number or Sprint number (e.g., v1.8.3 or release/54)
         required: false
       action:
         description: Action to perform
@@ -31,7 +31,7 @@ on:
         default: no
 
 permissions:
-  contents: write  # Ensures push/delete permissions for GITHUB_TOKEN
+  contents: write
 
 jobs:
   handle-branches:
@@ -49,6 +49,9 @@ jobs:
 
       - name: Filter branches and generate artifacts
         run: bash scripts/filter_branches.sh "${{ github.event.inputs.branch_type }}" "${{ github.event.inputs.tag_or_sprint }}"
+      - name: Filter branches and generate artifacts
+        run: bash scripts/filter_branches.sh "${{ github.event.inputs.branch_type }}" "${{ github.event.inputs.tag_or_sprint }}" "${{ github.event.inputs.action }}"
+
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
@@ -63,13 +66,13 @@ jobs:
           exit 0
 
       - name: Confirm deletion
-        if: ${{ github.event.inputs.action == 'delete' }}
+        if: ${{ github.event.inputs.action == 'delete' && github.event.inputs.tag_or_sprint != '' }}
         env:
           CONFIRM_DELETE_INPUT: ${{ github.event.inputs.confirm_delete }}
         run: bash scripts/confirm_delete.sh
 
       - name: Delete selected branch
-        if: ${{ github.event.inputs.action == 'delete' }}
+        if: ${{ github.event.inputs.action == 'delete' && github.event.inputs.tag_or_sprint != '' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_REPOSITORY: ${{ github.repository }}

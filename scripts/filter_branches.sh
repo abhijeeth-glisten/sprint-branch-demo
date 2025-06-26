@@ -3,48 +3,55 @@ set -eu
 
 BRANCH_TYPE="${1:-}"
 TAG_OR_SPRINT="${2:-}"
+ACTION="${3:-review}"  # default to review if not passed
 
-if [[ -z "$BRANCH_TYPE" || -z "$TAG_OR_SPRINT" ]]; then
-  echo "❌ Missing required arguments."
-  echo "Usage: $0 <branch_type> <tag_or_sprint>"
+echo " Filtering for: action=$ACTION, type=$BRANCH_TYPE, value=$TAG_OR_SPRINT"
+
+if [[ -z "$BRANCH_TYPE" ]]; then
+  echo " Branch type is missing."
   exit 1
 fi
 
-echo "✅ Filtering branches for: $BRANCH_TYPE / $TAG_OR_SPRINT"
+# Always start fresh
+sort -u branch-handler-artifact.log -o branch-handler-artifact.log
 
-PATTERN="${BRANCH_TYPE}/${TAG_OR_SPRINT}"
-echo "Input pattern: '$PATTERN'" >> branch-handler-artifact.log
+# If sprint/tag is blank
+if [[ -z "$TAG_OR_SPRINT" ]]; then
+  echo " No tag_or_sprint provided. Listing all '$BRANCH_TYPE/' branches."
 
-GITHUB_OUTPUT="${GITHUB_OUTPUT:-/tmp/github_output.txt}"
-echo "hotfix_exists=false" >> "$GITHUB_OUTPUT"
+  grep -i "^${BRANCH_TYPE}/" branch-handler-artifact.log || {
+    echo " No $BRANCH_TYPE branches found."
+    touch branch-handler-artifact.log
+  }
 
-if [[ "$BRANCH_TYPE" == "hotfix" ]]; then
-  ESCAPED_PATTERN=$(echo "$PATTERN" | sed -E 's/[][\\.^$*+?{}|()]/\\&/g')
-  MATCHING_BRANCHES=$(grep -i -E "^${ESCAPED_PATTERN}" branch-handler-artifact.log || true)
-  echo "=== Matched Branches ===" >> branch-handler-artifact.log
-  echo "$MATCHING_BRANCHES" >> branch-handler-artifact.log
-
-  HOTFIX_BRANCHES=$(grep -i -E '^hotfix/' branch-handler-artifact.log || true)
-
-  echo "🔍 HOTFIX_BRANCHES:"
-  echo "$HOTFIX_BRANCHES"
-
-  if [[ -n "$HOTFIX_BRANCHES" ]]; then
-    echo "=== Hotfix Tags ===" >> branch-handler-artifact.log
-
-    echo "$HOTFIX_BRANCHES" | bash scripts/extract_hotfix_tags.sh >> branch-handler-artifact.log || {
-      echo "❌ extract_hotfix_tags.sh failed"
-      exit 1
-    }
-
-    echo "hotfix_exists=true" >> "$GITHUB_OUTPUT"
-  else
-    echo "ℹ️ No matching hotfix branches found."
-  fi
-else
-  MATCHING_BRANCHES=$(grep -i -F "$PATTERN" branch-handler-artifact.log || true)
-  echo "=== Matched Branches ===" >> branch-handler-artifact.log
-  echo "$MATCHING_BRANCHES" >> branch-handler-artifact.log
+  exit 0
 fi
 
-echo "✅ Filter script completed."
+# Compose pattern
+if [[ "$TAG_OR_SPRINT" == */* ]]; then
+  PATTERN="$TAG_OR_SPRINT"  # full path (e.g., release/v1.4.0)
+else
+  PATTERN="${BRANCH_TYPE}/${TAG_OR_SPRINT}"  # normal form
+fi
+
+echo " Matching pattern: '$PATTERN'"
+
+if [[ "$ACTION" == "delete" ]]; then
+  # For deletion, match only exact branch
+  echo " Strict matching for deletion..."
+  MATCH=$(grep -Fx "$PATTERN" branch-handler-artifact.log || true)
+  if [[ -z "$MATCH" ]]; then
+    echo " No exact match found for '$PATTERN'"
+    exit 1
+  fi
+  echo "$MATCH" > branch-handler-artifact.log
+else
+  # For review/keep, show all similar matches
+  echo " Loose matching for review/keep..."
+  grep -i -F "$PATTERN" branch-handler-artifact.log > branch-handler-artifact.log || {
+    echo " No similar branches found for '$PATTERN'"
+    touch branch-handler-artifact.log
+  }
+fi
+
+echo " Branch filter complete."
