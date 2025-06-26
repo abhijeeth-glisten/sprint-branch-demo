@@ -48,8 +48,6 @@ jobs:
         run: bash scripts/fetch_branches.sh
 
       - name: Filter branches and generate artifacts
-        run: bash scripts/filter_branches.sh "${{ github.event.inputs.branch_type }}" "${{ github.event.inputs.tag_or_sprint }}"
-      - name: Filter branches and generate artifacts
         run: bash scripts/filter_branches.sh "${{ github.event.inputs.branch_type }}" "${{ github.event.inputs.tag_or_sprint }}" "${{ github.event.inputs.action }}"
 
 
