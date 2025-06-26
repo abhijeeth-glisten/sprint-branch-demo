@@ -12,22 +12,22 @@ if [[ -z "$BRANCH_TYPE" ]]; then
   exit 1
 fi
 
-# Deduplicate existing file if it exists
+# Deduplicate artifact file if present
 if [[ -f branch-handler-artifact.log ]]; then
   sort -u branch-handler-artifact.log -o branch-handler-artifact.log
 fi
 
-# No sprint/tag provided? Return all branches of this type
+# Case: no tag_or_sprint provided — list all branches by type
 if [[ -z "$TAG_OR_SPRINT" ]]; then
-  echo "No sprint or version provided. Listing all '$BRANCH_TYPE' branches."
-  grep -i "^${BRANCH_TYPE}[-/]" branch-handler-artifact.log || {
+  echo "No sprint or version provided. Listing all branches starting with '$BRANCH_TYPE-' or '$BRANCH_TYPE/'"
+  grep -Ei "^${BRANCH_TYPE}[-/]" branch-handler-artifact.log || {
     echo "No branches found for '$BRANCH_TYPE'."
     touch branch-handler-artifact.log
   }
   exit 0
 fi
 
-# Determine if user passed an exact branch name that already exists
+# Build matching pattern
 if grep -Fx "$TAG_OR_SPRINT" branch-handler-artifact.log > /dev/null; then
   PATTERN="$TAG_OR_SPRINT"
 else
@@ -36,6 +36,7 @@ fi
 
 echo "Using pattern: '$PATTERN'"
 
+# Handle based on action type
 if [[ "$ACTION" == "delete" ]]; then
   echo "Strict matching for deletion"
   MATCH=$(grep -Fx "$PATTERN" branch-handler-artifact.log || true)
