@@ -1,7 +1,6 @@
 name: Branch Handler Unified
 
 on:
-  push: 
   workflow_dispatch:
     inputs:
       branch_type:
