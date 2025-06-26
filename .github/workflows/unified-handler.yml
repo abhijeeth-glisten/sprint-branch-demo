@@ -1,0 +1,51 @@
+name: Branch Handler Unified
+
+on:
+  workflow_dispatch:
+    inputs:
+      branch_type:
+        description: Branch type (hotfix or sprint)
+        required: true
+        type: choice
+        options: [hotfix, sprint]
+      tag_or_sprint:
+        description: Version number or Sprint label (e.g. v1.8.3, release/54)
+        required: false
+      action:
+        description: Action to perform
+        required: true
+        default: review
+        type: choice
+        options: [review, keep, delete]
+      confirm_delete:
+        description: Type YES to confirm deletion (required only for delete)
+        required: false
+        default: no
+
+permissions:
+  contents: write
+
+jobs:
+  handle-branches:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Run unified branch handler
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: >
+          bash scripts/branch_handler.sh
+          "${{ github.event.inputs.branch_type }}"
+          "${{ github.event.inputs.tag_or_sprint }}"
+          "${{ github.event.inputs.action }}"
+          "${{ github.event.inputs.confirm_delete }}"
+
+      - name: Upload log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: branch-handler-output
+          path: branch-handler-artifact.log
