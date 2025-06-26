@@ -8,7 +8,7 @@ CONFIRM_DELETE="${4:-no}"
 
 echo "[INFO] Action: $ACTION, Branch type: $BRANCH_TYPE, Input value: $TAG_OR_SPRINT"
 
-# Fetch all branches
+# Fetch branches
 echo "[INFO] Fetching all branches from GitHub..."
 PAGE=1
 PER_PAGE=100
@@ -21,7 +21,6 @@ while : ; do
 
   BRANCH_NAMES=$(echo "$RESPONSE" | jq -r '.[].name')
   [[ -z "$BRANCH_NAMES" ]] && break
-
   ALL_BRANCHES+="$BRANCH_NAMES"$'\n'
   ((PAGE++))
 done
@@ -29,9 +28,9 @@ done
 echo "$ALL_BRANCHES" | sort -u | sed 's/[[:space:]]\+$//' > branch-handler-artifact.log
 [[ ! -s branch-handler-artifact.log ]] && echo "[WARN] No branches found!" && exit 1
 
-# Filter target branch
+# Handle full list case
 if [[ -z "$TAG_OR_SPRINT" ]]; then
-  echo "[INFO] No tag or sprint provided. Showing all branches starting with '$BRANCH_TYPE-' or '$BRANCH_TYPE/'"
+  echo "[INFO] No tag or sprint provided. Showing all branches starting with '$BRANCH_TYPE'"
   grep -Ei "^${BRANCH_TYPE}[-/]" branch-handler-artifact.log || {
     echo "[WARN] No branches found for '$BRANCH_TYPE'"
     > branch-handler-artifact.log
@@ -40,29 +39,28 @@ if [[ -z "$TAG_OR_SPRINT" ]]; then
   exit 0
 fi
 
-MATCHED=""
-for CANDIDATE in \
-  "$TAG_OR_SPRINT" \
-  "${BRANCH_TYPE}/${TAG_OR_SPRINT}" \
-  "${BRANCH_TYPE}-${TAG_OR_SPRINT}"; do
-  if grep -Fxq "$CANDIDATE" branch-handler-artifact.log; then
-    MATCHED="$CANDIDATE"
-    break
-  fi
-done
-
-[[ -z "$MATCHED" ]] && echo "[ERROR] No matching branch found for '$TAG_OR_SPRINT'" && exit 1
-
-echo "[INFO] Matched branch: $MATCHED"
-
-if [[ "$ACTION" == "review" || "$ACTION" == "keep" ]]; then
-  echo "$MATCHED" > branch-handler-artifact.log
-  echo "[INFO] Branch retained for $ACTION."
-  exit 0
-fi
-
-# Confirm deletion
 if [[ "$ACTION" == "delete" ]]; then
+  # Strict matching for delete
+  MATCHED=""
+  for CANDIDATE in \
+    "$TAG_OR_SPRINT" \
+    "${BRANCH_TYPE}/${TAG_OR_SPRINT}" \
+    "${BRANCH_TYPE}-${TAG_OR_SPRINT}"; do
+    if grep -Fxq "$CANDIDATE" branch-handler-artifact.log; then
+      MATCHED="$CANDIDATE"
+      break
+    fi
+  done
+
+  if [[ -z "$MATCHED" ]]; then
+    echo "[ERROR] No exact matching branch found for '$TAG_OR_SPRINT'"
+    exit 1
+  fi
+
+  echo "[INFO] Matched branch: $MATCHED"
+  echo "$MATCHED" > branch-handler-artifact.log
+
+  # Confirm deletion
   CONFIRM_CLEAN=$(echo "$CONFIRM_DELETE" | tr -d '[:space:]' | tr '[:lower:]' '[:upper:]')
   if [[ "$CONFIRM_CLEAN" != "YES" ]]; then
     echo "[WARN] Deletion not confirmed. Type YES to proceed."
@@ -91,4 +89,14 @@ if [[ "$ACTION" == "delete" ]]; then
     echo "[WARN] Branch does not exist remotely: '$MATCHED'"
     exit 1
   fi
+
+else
+  # Partial matching for review or keep
+  grep -i -F "$TAG_OR_SPRINT" branch-handler-artifact.log > tmp_match.log || {
+    echo "[WARN] No branches partially matched '$TAG_OR_SPRINT'"
+    touch tmp_match.log
+  }
+  mv tmp_match.log branch-handler-artifact.log
+  echo "[INFO] Matching branches written to artifact:"
+  cat branch-handler-artifact.log
 fi
